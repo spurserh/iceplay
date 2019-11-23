@@ -1,3 +1,6 @@
+// Adafruit TFT https://www.adafruit.com/product/1591
+// Adafruit breakout https://www.adafruit.com/product/1932
+
 module top (
 	input  clk,
 	output LED0,
@@ -107,45 +110,16 @@ module top (
 	assign LED6 = VSYNC;
 	assign {LED0, LED1, LED2, LED3, LED4, LED5} = 0;
 
-	assign R = 0;
+
+	reg[31:0] rando = 0;
+
+	assign B = rando[7:0];
+	assign R = rando[7:0];
 	assign G = 0;
 
-	wire [7:0] BA, BB, BC, BD;
-
-	wire[9:0] x2 = x << 1;
-	wire[9:0] y2 = y << 1;
-	
-	renderpix pix0(x2+0, y2+0, count, BA);
-	renderpix pix1(x2+1, y2+0, count, BB);
-	renderpix pix2(x2+0, y2+1, count, BC);
-	renderpix pix3(x2+1, y2+1, count, BD);
-
-	assign B = ({2'b0, BA} + {2'b0, BB} + {2'b0, BC} + {2'b0, BD}) >> 2;
-
-endmodule
-
-module renderpix (
-	input [9:0] x,
-	input [9:0] y,
-	input [8:0] count,
-	output [7:0] val);
-
-	wire[7:0] count_cycle = (count > 255) ? (255 - count) : count;
-
-	wire [19:0] c100 = count_cycle;
-
-	wire [19:0] dxs = x + (~c100) + 1;
-	wire [19:0] dys = y + (~c100) + 1;
-
-	wire [19:0] dx = dxs[9] ? (~dxs + 1) : dxs;
-	wire [19:0] dy = dys[9] ? (~dys + 1) : dys;
-
-	wire [20:0] dist = (dx * dx) + (dy * dy);
-
-	wire [21:0] thresh = {count_cycle, 11'b0};
-	wire [21:0] minus_dist = (dist > thresh) ? 0 : (thresh - dist);
-
-	assign val = minus_dist >> (13 - 5);
+	always @(posedge DCLK) begin
+		rando <= (rando & 10'b1111111111) * 16'h0EEFEEBB + x - y + count * 33;
+	end
 
 endmodule
 
