@@ -1,0 +1,42 @@
+set_io LED0 B5
+set_io LED1 B4
+set_io LED2 A2
+set_io LED3 A1
+set_io LED4 C5
+set_io LED5 C4
+set_io LED6 B3
+set_io LED7 C3
+
+set_io DE N16
+set_io VSYNC P15
+set_io HSYNC M15
+set_io DCLK L16
+
+set_io B7 P16
+set_io B6 M16
+set_io B5 K16
+set_io B4 K15
+set_io B3 J14
+set_io B2 K14
+set_io B1 G14
+set_io B0 F14
+
+set_io R7 J15
+set_io R6 H14
+set_io R5 G15
+set_io R4 H16
+set_io R3 G16
+set_io R2 F15
+set_io R1 F16
+set_io R0 E14
+
+set_io G7 E16
+set_io G6 D15
+set_io G5 D16
+set_io G4 D14
+set_io G3 B16
+set_io G2 C16
+
+
+
+set_io clk J3
