@@ -1,0 +1,4 @@
+-D__SYNTHESIS__
+-I/home/shmeebegek/xls
+-I/home/shmeebegek/ac_types/include
+-I/usr/include/clang/6.0.0/include
