@@ -5,16 +5,17 @@ module top(input clkin, input btn,
            output [7:0] led);
   wire clk = clkin;
 
-  reg [59:0] printer_state = {60{1'b0}};
-  wire [59:0] printer_state_next;
+  localparam STATE_SIZE = 184;
 
-  wire [63:0] word = 64'h0A42414241424142;
+  reg [STATE_SIZE-1:0] printer_state = {STATE_SIZE{1'b0}};
+  wire [STATE_SIZE-1:0] printer_state_next;
+
+  reg [31:0] number = 32'd0;
 
   printer i_printer(
-    .state(printer_state),
+    .this(printer_state),
     .tx_out(0),
-    .word(word),
-    // ... ?
+    .number_in(number),
     .out({printer_state_next, uart_tx})
   );
 
@@ -22,9 +23,12 @@ module top(input clkin, input btn,
 
   reg[7:0] led_st = ~0;
 
+  reg [31:0] count = 32'd0;
   always @(posedge clk) begin
     printer_state <= printer_state_next;
     led[0] <= uart_tx;
+    number <= count[26:21];
+    count <= count + 1;
   end
 
   assign led = led_st;

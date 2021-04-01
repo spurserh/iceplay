@@ -1,6 +1,8 @@
 
 #include "xls/contrib/xlscc/synth_only/xls_int.h"
 
+namespace {
+
 /*
 enum StateName {
 	State_Wait=0,
@@ -10,69 +12,121 @@ enum StateName {
 */
 
 #define State_Wait 0
-#define State_TX 1
-#define State_TX_Num 2
-
-struct State {
-	XlsInt<32, true> cnt;
-	XlsInt<1, false> last_fb;
-	XlsInt<1, false> dbg_reg;
-	XlsInt<10, false> shifter;
-	XlsInt<4, false> bitcnt;
-	XlsInt<8, false> char_idx;
-	XlsInt<3, false> state;
-	XlsInt<1, false> number;
-};
+#define State_Num 1
+#define State_TX 2
 
 typedef XlsInt<1, false> uai1;
 typedef XlsInt<6, false> uai6;
 typedef XlsInt<8, false> uai8;
 typedef XlsInt<10, false> uai10;
+typedef XlsInt<32, false> uai32;
 typedef XlsInt<64, false> uai64;
 
-#pragma hls_top
-void printer(State &state, uai1& tx_out, uai64 word) {
-	const uai10 shifter_default = 0b1000000000;
-	const int B115200 = 104;
 
-	switch(state.state) {
-		case State_Wait: 
-			++state.cnt;
-			// TODO: Array hack
-//			if(state.cnt[19]) {
-			if(state.cnt.slc<1>(19)) {
-				state.state = State_TX;
-				state.cnt = B115200;
-				state.bitcnt = 9;
-				state.char_idx = ~0;
+// Credit to https://stackoverflow.com/questions/5558492/divide-by-10-using-bit-shifts
+unsigned divu10(unsigned n) {
+    unsigned q, r;
+    q = (n >> 1) + (n >> 2);
+    q = q + (q >> 4);
+    q = q + (q >> 8);
+    q = q + (q >> 16);
+    q = q >> 3;
+    r = n - (((q << 2) + q) << 1);
+    return q + (r > 9);
+}
+
+const int MAX_CHARS = 12;
+
+}  // namespace
+
+struct State {
+	XlsInt<3, false> state;
+	XlsInt<32, true> cnt;
+
+	XlsInt<10, false> shifter;
+	XlsInt<4, false> bitcnt;
+
+	uai8 str[MAX_CHARS];
+	XlsInt<8, true> next_char_idx;
+
+	uai32 number;
+//	bool newline;
+
+
+	#pragma hls_top
+	void printer(uai1& tx_out, uai32 number_in) {
+		const uai10 shifter_default = 0b1000000000;
+		const int B115200 = 104;
+
+		switch(state) {
+			case State_Wait: 
+				++cnt;
+				// TODO: Array hack
+	//			if(this->cnt[19]) {
+				if(cnt.slc<1>(21)) {
+					number = number_in;
+
+					next_char_idx=0;
+					str[next_char_idx] = '\n';
+					++next_char_idx;
+
+					if(number == 0) {
+						str[next_char_idx] = '0';
+						++next_char_idx;
+					}
+					state = State_Num;
+				}
+				break;
+
+			case State_Num: {
+				if(number > 0) {
+					const unsigned by10 = divu10(number);
+					const unsigned rem10 = number - by10*10;
+
+					number = by10;
+
+					str[next_char_idx] = '0' + rem10;
+					state = State_Num;
+					next_char_idx++;
+				} else {
+					cnt = B115200;
+					bitcnt = 9;
+					--next_char_idx;
+					state = State_TX;
+				}
+				break;
 			}
-			break;
-		
-		case State_TX: 
-			if(state.cnt == B115200) {
-				state.cnt = 0;
+			
+			case State_TX: 
+				if(cnt == B115200) {
+					cnt = 0;
 
-				if(state.bitcnt == 9) {
-					if(state.char_idx == 8) {
-						state.state = State_Wait;
-						state.cnt = 0;
+					if(bitcnt == 9) {
+						if(next_char_idx<0) {
+							state = State_Wait;
+							cnt = 0;
+						} else {
+							shifter = shifter_default;
+
+							uai8 c = str[next_char_idx];
+							shifter.set_slc(1, c);
+							bitcnt=0;
+							--next_char_idx;
+						}
 					} else {
-						state.shifter = shifter_default;
-						const uai8 c = word.slc<8>(uai6(state.char_idx) * 8);
-						state.shifter.set_slc(1, c);
-						++state.char_idx;
-						state.bitcnt=0;
+						++bitcnt;
+	//					this->shifter >>= 1;
+						shifter = shifter >> 1;
 					}
 				} else {
-					++state.bitcnt;
-//					state.shifter >>= 1;
-					state.shifter = state.shifter >> 1;
+					++cnt;
 				}
-			} else {
-				++state.cnt;
-			}
-			break;
+				break;
+		}
+	//	tx_out = this->shifter[0];
+		tx_out = shifter.slc<1>(0);
 	}
-//	tx_out = state.shifter[0];
-	tx_out = state.shifter.slc<1>(0);
-}
+};
+
+
+
