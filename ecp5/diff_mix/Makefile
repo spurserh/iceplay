@@ -6,7 +6,7 @@ all: ${PROJ}.bit
 %.json: %.v
 	yosys -p "synth_ecp5 -json $@" $<
 
-%_out.config: %.json
+%_out.config: %.json ecp5evn.lpf
 	nextpnr-ecp5 --json $< --textcfg $@ --um5g-85k --package CABGA381 --lpf ecp5evn.lpf
 
 %.bit: %_out.config

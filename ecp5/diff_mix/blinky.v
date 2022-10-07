@@ -15,6 +15,37 @@ module LFSR_rng(
   assign rand_out = rand_ff;
 endmodule
 
+// Credit to prjtrellis/examples/soc_versa5g/pll.v 
+module pll_144(input clki, output clko);
+
+    (* ICP_CURRENT="12" *) (* LPF_RESISTOR="8" *) (* MFG_ENABLE_FILTEROPAMP="1" *) (* MFG_GMCREF_SEL="2" *)
+    EHXPLLL #(
+        .PLLRST_ENA("DISABLED"),
+        .INTFB_WAKE("DISABLED"),
+        .STDBY_ENABLE("DISABLED"),
+        .DPHASE_SOURCE("DISABLED"),
+        .CLKOP_FPHASE(0),
+        .CLKOP_CPHASE(11),
+        .OUTDIVIDER_MUXA("DIVA"),
+        .CLKOP_ENABLE("ENABLED"),
+        .CLKOP_DIV(16),
+        .CLKFB_DIV(24),
+        .CLKI_DIV(2),
+        .FEEDBK_PATH("CLKOP")
+    ) pll_i (
+        .CLKI(clki),
+        .CLKFB(clko),
+        .CLKOP(clko),
+        .RST(1'b0),
+        .STDBY(1'b0),
+        .PHASESEL0(1'b0),
+        .PHASESEL1(1'b0),
+        .PHASEDIR(1'b0),
+        .PHASESTEP(1'b0),
+        .PLLWAKESYNC(1'b0),
+        .ENCLKOP(1'b0),
+    );
+endmodule
 
 
 module window_sum(input clk, input raw_in, output [$clog2(WINDOW_BITS)-1:0] count_out);  
@@ -46,8 +77,9 @@ endmodule
 module top(input clkin, 
            input diff_input, input btn, output out, output threshold, output [7:0] led);
 
+  pll_144 pll(.clki(clkin), .clko(clk));
 
-  wire clk = clkin;
+//  wire clk = clkin;
 
  wire diff_in_0, diff_in_1;
 `define PINTYPE 6'b010000
@@ -73,32 +105,38 @@ module top(input clkin,
   end
 
   assign out = in_latched;
+//  assign out = clk;
 
-  localparam SLOW_COUNT_BITS = 26;
+  localparam SLOW_COUNT_BITS = 28;
   reg [SLOW_COUNT_BITS-1:0] slow_count = {0};
   always @(posedge clk) begin
     slow_count <= slow_count + 1;
   end
 
-  localparam VOLTAGE_SERVO_BITS = BIG_WINDOW_COUNT_BITS;
+//  localparam VOLTAGE_SERVO_BITS = BIG_WINDOW_COUNT_BITS;
+  localparam VOLTAGE_SERVO_BITS = 16;
 
   // Start in the middle
   reg [VOLTAGE_SERVO_BITS-1:0] voltage_servo = 1'b1 << (VOLTAGE_SERVO_BITS-1);
 
-  localparam seek_threshold = 850;
+  localparam seek_threshold = $rtoi(BIG_WINDOW_BITS * 0.5);
   localparam seek_within = 20;
 
+  localparam just_sweep_voltage = 0;
+
   always @(posedge clk) begin
-    // Going too fast creates feedbacks
-    if(slow_count[20:0] == 0) begin
-
-      if(big_window_count < (seek_threshold - seek_within)) begin
-        voltage_servo <= voltage_servo - (1 + (seek_threshold - big_window_count) >> 4);
-      end else if(big_window_count > (seek_threshold + seek_within)) begin
-        voltage_servo <= voltage_servo + (1 + (big_window_count - seek_threshold) >> 4);
+    if(!just_sweep_voltage) begin
+      // Going too fast creates feedbacks
+      if(slow_count[20:0] == 0) begin
+        if(big_window_count < (seek_threshold - seek_within)) begin
+          voltage_servo <= voltage_servo - (1 + (seek_threshold - big_window_count) >> 4);
+        end else if(big_window_count > (seek_threshold + seek_within)) begin
+          voltage_servo <= voltage_servo + (1 + (big_window_count - seek_threshold) >> 4);
+        end
       end
+    end else begin
+      voltage_servo <= slow_count[SLOW_COUNT_BITS-1:SLOW_COUNT_BITS-VOLTAGE_SERVO_BITS];
     end
-
   end
 
 
